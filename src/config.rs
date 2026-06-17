@@ -30,15 +30,15 @@ pub struct CacheConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PricingConfig {
-    pub default: DefaultPrice,
-    pub schedule: ScheduleConfig,
+    pub residential: PriceType,
+    pub charging: PriceType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DefaultPrice {
+pub struct PriceType {
     pub peak_price: f64,
-    pub flat_price: f64,
     pub valley_price: f64,
+    pub schedule: ScheduleConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,14 +96,21 @@ impl AppConfig {
             },
             cache: CacheConfig { ttl: 3600 },
             pricing: PricingConfig {
-                default: DefaultPrice {
-                    peak_price: 0.56,
-                    flat_price: 0.56,
-                    valley_price: 0.35,
+                residential: PriceType {
+                    peak_price: 0.5583,
+                    valley_price: 0.3583,
+                    schedule: ScheduleConfig {
+                        peak_hours: vec![vec![8, 21]],
+                        valley_hours: vec![vec![21, 8]],
+                    },
                 },
-                schedule: ScheduleConfig {
-                    peak_hours: vec![vec![8, 11], vec![17, 21]],
-                    valley_hours: vec![vec![22, 6]],
+                charging: PriceType {
+                    peak_price: 0.5783,
+                    valley_price: 0.3783,
+                    schedule: ScheduleConfig {
+                        peak_hours: vec![vec![7, 11], vec![13, 22]],
+                        valley_hours: vec![vec![11, 13], vec![22, 7]],
+                    },
                 },
             },
         }

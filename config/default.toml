@@ -16,15 +16,25 @@ ttl = 3600
 [pricing]
 # 默认电价配置（元/kWh）
 # 用于离线模式或 API 不可用时的降级
-[pricing.default]
-peak_price = 0.56
-flat_price = 0.56
-valley_price = 0.35
 
-# 江苏峰谷时段定义
-[pricing.schedule]
-# 高峰时段
-peak_hours = [[8, 11], [17, 21]]
-# 低谷时段
-valley_hours = [[22, 6]]
-# 其余为平段
+# 居民用电
+[pricing.residential]
+peak_price = 0.5583
+valley_price = 0.3583
+
+[pricing.residential.schedule]
+# 高峰时段: 8:00-21:00
+peak_hours = [[8, 21]]
+# 低谷时段: 21:00-8:00 (其余时间)
+valley_hours = [[21, 8]]
+
+# 充电桩用电
+[pricing.charging]
+peak_price = 0.5783
+valley_price = 0.3783
+
+[pricing.charging.schedule]
+# 高峰时段: 7:00-11:00, 13:00-22:00
+peak_hours = [[7, 11], [13, 22]]
+# 低谷时段: 11:00-13:00, 22:00-7:00
+valley_hours = [[11, 13], [22, 7]]

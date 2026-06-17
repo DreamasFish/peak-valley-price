@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::AppConfig;
 use crate::error::{AppError, Result};
-use crate::models::{DailyPriceSchedule, PricePeriod, PriceTier, Region, Season};
+use crate::models::{DailyPriceSchedule, PricePeriod, PriceTier, Region, Season, UsageType};
 
 pub struct SgccProvider {
     client: Client,
     config: AppConfig,
+    usage_type: UsageType,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,13 +32,13 @@ struct SgccPriceItem {
 }
 
 impl SgccProvider {
-    pub fn new(config: AppConfig) -> Result<Self> {
+    pub fn new(config: AppConfig, usage_type: UsageType) -> Result<Self> {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(config.api.timeout))
             .build()
             .map_err(|e| AppError::Api(format!("创建 HTTP 客户端失败: {}", e)))?;
 
-        Ok(Self { client, config })
+        Ok(Self { client, config, usage_type })
     }
 
     fn build_api_url(&self, region: &Region, date: NaiveDate) -> String {
@@ -106,63 +107,69 @@ impl SgccProvider {
 
     fn build_fallback_schedule(&self, region: &Region, date: NaiveDate) -> DailyPriceSchedule {
         let season = Season::from_month(date.month());
-        let config = &self.config.pricing;
+        let pricing = match self.usage_type {
+            UsageType::Residential => &self.config.pricing.residential,
+            UsageType::Charging => &self.config.pricing.charging,
+        };
 
         let mut periods = Vec::new();
-        let mut current_hour = 0u8;
+        let schedule = &pricing.schedule;
 
-        let schedule = &config.schedule;
-        let default_price = &config.default;
+        // Build a 24-hour timeline
+        let mut hour_tiers: Vec<(u8, PriceTier, f64)> = Vec::new();
 
+        // First, mark all hours as valley by default
+        for hour in 0..24u8 {
+            hour_tiers.push((hour, PriceTier::Valley, pricing.valley_price));
+        }
+
+        // Then mark peak hours
         for peak in &schedule.peak_hours {
-            if peak[0] != current_hour {
-                periods.push(PricePeriod {
-                    tier: PriceTier::Flat,
-                    start_hour: current_hour,
-                    end_hour: peak[0],
-                    price: default_price.flat_price,
-                    season,
-                });
+            let start = peak[0];
+            let end = peak[1];
+            if start < end {
+                for hour in start..end {
+                    hour_tiers[hour as usize] = (hour, PriceTier::Peak, pricing.peak_price);
+                }
+            } else {
+                // Wraps around midnight
+                for hour in start..24 {
+                    hour_tiers[hour as usize] = (hour, PriceTier::Peak, pricing.peak_price);
+                }
+                for hour in 0..end {
+                    hour_tiers[hour as usize] = (hour, PriceTier::Peak, pricing.peak_price);
+                }
             }
-            periods.push(PricePeriod {
-                tier: PriceTier::Peak,
-                start_hour: peak[0],
-                end_hour: peak[1],
-                price: default_price.peak_price,
-                season,
-            });
-            current_hour = peak[1];
         }
 
-        for valley in &schedule.valley_hours {
-            if valley[0] != current_hour {
+        // Convert to periods by merging consecutive hours with same tier
+        let mut current_tier = hour_tiers[0].1;
+        let mut current_price = hour_tiers[0].2;
+        let mut start_hour = 0u8;
+
+        for hour in 1..24u8 {
+            let (tier, price) = (hour_tiers[hour as usize].1, hour_tiers[hour as usize].2);
+            if tier != current_tier || price != current_price {
                 periods.push(PricePeriod {
-                    tier: PriceTier::Flat,
-                    start_hour: current_hour,
-                    end_hour: valley[0],
-                    price: default_price.flat_price,
+                    tier: current_tier,
+                    start_hour,
+                    end_hour: hour,
+                    price: current_price,
                     season,
                 });
+                current_tier = tier;
+                current_price = price;
+                start_hour = hour;
             }
-            periods.push(PricePeriod {
-                tier: PriceTier::Valley,
-                start_hour: valley[0],
-                end_hour: valley[1],
-                price: default_price.valley_price,
-                season,
-            });
-            current_hour = valley[1];
         }
-
-        if current_hour < 24 {
-            periods.push(PricePeriod {
-                tier: PriceTier::Flat,
-                start_hour: current_hour,
-                end_hour: 24,
-                price: default_price.flat_price,
-                season,
-            });
-        }
+        // Add the last period
+        periods.push(PricePeriod {
+            tier: current_tier,
+            start_hour,
+            end_hour: 24,
+            price: current_price,
+            season,
+        });
 
         DailyPriceSchedule {
             date,

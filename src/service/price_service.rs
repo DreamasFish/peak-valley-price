@@ -25,8 +25,7 @@ impl PriceService {
     }
 
     pub async fn today_prices(&self, region: &Region) -> Result<DailyPriceSchedule> {
-        let today = Local::now().date_naive();
-        self.get_schedule(region, today).await
+        self.current_price(region).await
     }
 
     pub async fn prices_for_date(
@@ -61,43 +60,36 @@ impl PriceService {
 
         let mut recommendations = Vec::new();
 
-        if let Some(current) = current {
-            match current.tier {
-                PriceTier::Valley => {
-                    recommendations.push("当前是低谷时段，适合用电".to_string());
-                }
-                PriceTier::Flat => {
-                    recommendations.push("当前是平段时段，用电成本适中".to_string());
-                }
-                PriceTier::Peak => {
-                    recommendations.push("当前是高峰时段，建议减少用电".to_string());
-                }
-            }
+        if let Some(period) = current {
+            let tip = match period.tier {
+                PriceTier::Valley => "当前是低谷时段，适合用电",
+                PriceTier::Flat => "当前是平段时段，用电成本适中",
+                PriceTier::Peak => "当前是高峰时段，建议减少用电",
+            };
+            recommendations.push(tip.to_string());
         }
 
-        if let Some(cheapest) = cheapest {
+        if let Some(cheap) = cheapest {
             recommendations.push(format!(
-                "今日最低电价: {} {:02}:00-{:02}:00 ¥{:.2}/kWh",
-                cheapest.tier, cheapest.start_hour, cheapest.end_hour, cheapest.price
+                "今日最低电价: {} {:02}:00-{:02}:00 ¥{:.4}/kWh",
+                cheap.tier, cheap.start_hour, cheap.end_hour, cheap.price
             ));
         }
 
         if let Some(expensive) = most_expensive {
             recommendations.push(format!(
-                "今日最高电价: {} {:02}:00-{:02}:00 ¥{:.2}/kWh",
+                "今日最高电价: {} {:02}:00-{:02}:00 ¥{:.4}/kWh",
                 expensive.tier, expensive.start_hour, expensive.end_hour, expensive.price
             ));
+        }
 
-            if let Some(current) = current {
-                if current.tier == PriceTier::Peak {
-                    if let Some(cheapest) = cheapest {
-                        let saving = current.price - cheapest.price;
-                        recommendations.push(format!(
-                            "如果等到 {} {:02}:00-{:02}:00 用电，每 kWh 可省 ¥{:.2}",
-                            cheapest.tier, cheapest.start_hour, cheapest.end_hour, saving
-                        ));
-                    }
-                }
+        if let (Some(curr), Some(cheap)) = (current, cheapest) {
+            if curr.tier == PriceTier::Peak {
+                let saving = curr.price - cheap.price;
+                recommendations.push(format!(
+                    "如果等到 {} {:02}:00-{:02}:00 用电，每 kWh 可省 ¥{:.4}",
+                    cheap.tier, cheap.start_hour, cheap.end_hour, saving
+                ));
             }
         }
 

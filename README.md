@@ -10,6 +10,7 @@
 - **今日电价表**: 显示全天各时段电价
 - **指定日期查询**: 查询任意日期的电价
 - **智能用电建议**: 根据当前电价提供用电优化建议
+- **多种用电类型**: 支持居民用电和充电桩用电
 - **配置管理**: 支持自定义地区和配置参数
 - **离线降级**: API 不可用时自动使用本地配置数据
 
@@ -18,7 +19,7 @@
 ### 从源码编译
 
 ```bash
-git clone https://github.com/your-username/peak-valley-price.git
+git clone https://github.com/DreamasFish/peak-valley-price.git
 cd peak-valley-price
 cargo build --release
 ```
@@ -30,17 +31,33 @@ cargo build --release
 ### 基本命令
 
 ```bash
+# 查看今日电价（默认居民用电）
+peak-valley-price today
+
+# 查看充电桩电价
+peak-valley-price -t charging today
+
 # 查看当前电价
 peak-valley-price current
 
-# 查看今日电价表
-peak-valley-price today
+# 查看充电桩当前电价
+peak-valley-price -t charging current
 
 # 查询指定日期电价
 peak-valley-price date --date 2024-01-15
 
 # 获取用电建议
 peak-valley-price recommend
+```
+
+### 用电类型
+
+```bash
+# 居民用电（默认）
+peak-valley-price -t residential today
+
+# 充电桩用电
+peak-valley-price -t charging today
 ```
 
 ### 配置管理
@@ -59,6 +76,22 @@ peak-valley-price config set-region jiangsu/wuxi
 # 通过命令行参数指定地区
 peak-valley-price -p jiangsu -c wuxi today
 ```
+
+## 电价时段说明
+
+### 居民用电
+
+| 时段 | 时间 | 电价 (元/kWh) |
+|------|------|---------------|
+| 高峰 | 08:00-21:00 | 0.5583 |
+| 低谷 | 21:00-08:00 | 0.3583 |
+
+### 充电桩用电
+
+| 时段 | 时间 | 电价 (元/kWh) |
+|------|------|---------------|
+| 高峰 | 07:00-11:00, 13:00-22:00 | 0.5783 |
+| 低谷 | 11:00-13:00, 22:00-07:00 | 0.3783 |
 
 ## 支持的地区
 
@@ -90,22 +123,24 @@ timeout = 10
 [cache]
 ttl = 3600
 
-[pricing.default]
-peak_price = 0.56
-flat_price = 0.56
-valley_price = 0.35
+# 居民用电
+[pricing.residential]
+peak_price = 0.5583
+valley_price = 0.3583
 
-[pricing.schedule]
-peak_hours = [[8, 11], [17, 21]]
-valley_hours = [[22, 6]]
+[pricing.residential.schedule]
+peak_hours = [[8, 21]]
+valley_hours = [[21, 8]]
+
+# 充电桩用电
+[pricing.charging]
+peak_price = 0.5783
+valley_price = 0.3783
+
+[pricing.charging.schedule]
+peak_hours = [[7, 11], [13, 22]]
+valley_hours = [[11, 13], [22, 7]]
 ```
-
-## 电价时段说明
-
-江苏地区峰谷时段划分：
-- **高峰时段**: 8:00-11:00, 17:00-21:00
-- **低谷时段**: 22:00-6:00
-- **平段时段**: 其余时间
 
 ## 项目结构
 
@@ -122,6 +157,7 @@ src/
 │   └── mock.rs      # 测试数据提供者
 ├── models/          # 数据模型
 │   ├── price.rs     # 电价相关模型
+│   ├── price_type.rs # 用电类型
 │   └── region.rs    # 地区模型
 ├── service/         # 业务逻辑
 │   ├── price_service.rs  # 电价服务

@@ -80,10 +80,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_set_get() {
-        let config = AppConfig::load().unwrap_or_else(|_| AppConfig {
-            cache: crate::config::CacheConfig { ttl: 60 },
-            ..AppConfig::default_config()
-        });
+        let config = AppConfig::load().unwrap_or_else(|_| AppConfig::default_config());
         let cache = PriceCache::new(&config);
         let region = Region::jiangsu_wuxi();
         let today = Local::now().date_naive();

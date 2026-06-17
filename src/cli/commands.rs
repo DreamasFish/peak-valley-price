@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 
 use crate::config::AppConfig;
 use crate::error::Result;
-use crate::models::Region;
+use crate::models::{Region, UsageType};
 use crate::service::PriceService;
 
 #[derive(Parser)]
@@ -19,6 +19,9 @@ pub struct Cli {
 
     #[arg(short, long, global = true)]
     pub city: Option<String>,
+
+    #[arg(short, long, global = true, default_value = "residential")]
+    pub r#type: UsageType,
 }
 
 #[derive(Subcommand)]
@@ -49,8 +52,9 @@ pub async fn run() -> Result<()> {
     let config = AppConfig::load()?;
 
     let region = resolve_region(&cli, &config);
+    let usage_type = cli.r#type;
 
-    let provider = create_provider(&config);
+    let provider = create_provider(&config, usage_type);
     let service = PriceService::new(provider, &config);
 
     match &cli.command {
@@ -58,13 +62,13 @@ pub async fn run() -> Result<()> {
             let schedule = service.current_price(&region).await?;
             let now = Local::now().time();
 
-            println!("{} 当前电价:", region);
+            println!("{} {} 当前电价:", usage_type, region);
             println!("{:-<40}", "");
 
             if let Some(period) = schedule.current_price(now) {
                 println!("  当前时段: {} ({:02}:00-{:02}:00)",
                     period.tier, period.start_hour, period.end_hour);
-                println!("  电价: ¥{:.2}/kWh", period.price);
+                println!("  电价: ¥{:.4}/kWh", period.price);
             }
 
             println!("{:-<40}", "");
@@ -90,8 +94,19 @@ pub async fn run() -> Result<()> {
                     println!("当前配置:");
                     println!("{:-<40}", "");
                     println!("  地区: {}", region);
+                    println!("  用电类型: {}", usage_type);
                     println!("  API: {}", config.api.base_url);
                     println!("  缓存TTL: {}秒", config.cache.ttl);
+                    match usage_type {
+                        UsageType::Residential => {
+                            println!("  高峰电价: ¥{:.4}/kWh", config.pricing.residential.peak_price);
+                            println!("  低谷电价: ¥{:.4}/kWh", config.pricing.residential.valley_price);
+                        }
+                        UsageType::Charging => {
+                            println!("  高峰电价: ¥{:.4}/kWh", config.pricing.charging.peak_price);
+                            println!("  低谷电价: ¥{:.4}/kWh", config.pricing.charging.valley_price);
+                        }
+                    }
                     println!("{:-<40}", "");
                 }
                 ConfigAction::SetRegion { region: region_str } => {
@@ -122,11 +137,11 @@ fn resolve_region(cli: &Cli, config: &AppConfig) -> Region {
     }
 }
 
-fn create_provider(config: &AppConfig) -> Box<dyn crate::api::traits::PriceProvider> {
-    if let Ok(provider) = crate::api::SgccProvider::new(config.clone()) {
+fn create_provider(config: &AppConfig, usage_type: UsageType) -> Box<dyn crate::api::traits::PriceProvider> {
+    if let Ok(provider) = crate::api::SgccProvider::new(config.clone(), usage_type) {
         Box::new(provider)
     } else {
         tracing::warn!("无法创建国网 API 客户端，使用 Mock 数据");
-        Box::new(crate::api::MockProvider::new())
+        Box::new(crate::api::MockProvider::new(usage_type))
     }
 }

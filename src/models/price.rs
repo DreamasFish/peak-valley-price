@@ -126,7 +126,7 @@ impl fmt::Display for DailyPriceSchedule {
         }
         writeln!(f, "{:-<40}", "")?;
         if let Some(cheap) = self.cheapest_period() {
-            writeln!(f, "💡 最便宜: {} {:02}:00-{:02}:00 ¥{:.2}/kWh",
+            writeln!(f, "💡 最便宜: {} {:02}:00-{:02}:00 ¥{:.4}/kWh",
                 cheap.tier, cheap.start_hour, cheap.end_hour, cheap.price)?;
         }
         Ok(())
