@@ -1,0 +1,30 @@
+# 默认配置
+[region]
+province = "jiangsu"
+city = "wuxi"
+
+[api]
+# 国家电网 API 基础 URL
+base_url = "https://www.95598.cn"
+# 请求超时（秒）
+timeout = 10
+
+[cache]
+# 缓存有效期（秒）
+ttl = 3600
+
+[pricing]
+# 默认电价配置（元/kWh）
+# 用于离线模式或 API 不可用时的降级
+[pricing.default]
+peak_price = 0.56
+flat_price = 0.56
+valley_price = 0.35
+
+# 江苏峰谷时段定义
+[pricing.schedule]
+# 高峰时段
+peak_hours = [[8, 11], [17, 21]]
+# 低谷时段
+valley_hours = [[22, 6]]
+# 其余为平段

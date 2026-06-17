@@ -1,0 +1,21 @@
+[package]
+name = "peak-valley-price"
+version = "0.1.0"
+edition = "2021"
+description = "峰谷电价查询工具 - 江苏无锡"
+authors = ["daf"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+anyhow = "1"
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+dirs = "5"
